@@ -638,6 +638,11 @@ func resourceAwsS3Bucket() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"skip_logging_config": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 	}
 }
@@ -768,9 +773,12 @@ func resourceAwsS3BucketUpdate(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 
-	if d.HasChange("logging") {
-		if err := resourceAwsS3BucketLoggingUpdate(s3conn, d); err != nil {
-			return err
+	skipLoggingConfig, skipLoggingConfigOk := d.GetOk("skip_logging_config")
+	if !skipLoggingConfigOk || !skipLoggingConfig.(bool) {
+		if d.HasChange("logging") {
+			if err := resourceAwsS3BucketLoggingUpdate(s3conn, d); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1089,30 +1097,34 @@ func resourceAwsS3BucketRead(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Read the logging configuration
-	loggingResponse, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
-		return s3conn.GetBucketLogging(&s3.GetBucketLoggingInput{
-			Bucket: aws.String(d.Id()),
+
+	skipLoggingConfig, skipLoggingConfigOk := d.GetOk("skip_logging_config")
+	if !skipLoggingConfigOk || !skipLoggingConfig.(bool) {
+		loggingResponse, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
+			return s3conn.GetBucketLogging(&s3.GetBucketLoggingInput{
+				Bucket: aws.String(d.Id()),
+			})
 		})
-	})
 
-	if err != nil {
-		return fmt.Errorf("error getting S3 Bucket logging: %s", err)
-	}
+		if err != nil {
+			return fmt.Errorf("error getting S3 Bucket logging: %s", err)
+		}
 
-	lcl := make([]map[string]interface{}, 0, 1)
-	if logging, ok := loggingResponse.(*s3.GetBucketLoggingOutput); ok && logging.LoggingEnabled != nil {
-		v := logging.LoggingEnabled
-		lc := make(map[string]interface{})
-		if aws.StringValue(v.TargetBucket) != "" {
-			lc["target_bucket"] = aws.StringValue(v.TargetBucket)
+		lcl := make([]map[string]interface{}, 0, 1)
+		if logging, ok := loggingResponse.(*s3.GetBucketLoggingOutput); ok && logging.LoggingEnabled != nil {
+			v := logging.LoggingEnabled
+			lc := make(map[string]interface{})
+			if aws.StringValue(v.TargetBucket) != "" {
+				lc["target_bucket"] = aws.StringValue(v.TargetBucket)
+			}
+			if aws.StringValue(v.TargetPrefix) != "" {
+				lc["target_prefix"] = aws.StringValue(v.TargetPrefix)
+			}
+			lcl = append(lcl, lc)
 		}
-		if aws.StringValue(v.TargetPrefix) != "" {
-			lc["target_prefix"] = aws.StringValue(v.TargetPrefix)
+		if err := d.Set("logging", lcl); err != nil {
+			return fmt.Errorf("error setting logging: %s", err)
 		}
-		lcl = append(lcl, lc)
-	}
-	if err := d.Set("logging", lcl); err != nil {
-		return fmt.Errorf("error setting logging: %s", err)
 	}
 
 	// Read the lifecycle configuration

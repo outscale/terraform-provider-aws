@@ -341,7 +341,7 @@ resource "aws_s3_bucket" "bucket" {
   skip_acceleration_config = true
   skip_payer_config        = true
   skip_lock_config         = true
-
+  skip_logging_config      = true
 }
 ```
 
@@ -373,6 +373,7 @@ developer guide for more information.
 * `skip_acceleration_config` - (Optional, Default:`false`) A boolean that indicates acceleration configuration should not be performed; useful with different S3 implementations that do not support acceleration
 * `skip_payer_config` - (Optional, Default:`false`) A boolean that indicates payer configuration should not be performed; useful with different S3 implementations that do not support payer configuration
 * `skip_lock_config` - (Optional, Default:`false`) A boolean that indicates lock configuration should not be performed; useful with different S3 implementations that do not support lock configuration
+* `skip_logging_config` - (Optional, Default:`false`) A boolean that indicates logging configuration should not be performed; useful with different S3 implementations that do not support logging configuration
 
 ~> **NOTE:** You cannot use `acceleration_status` in `cn-north-1` or `us-gov-west-1`
 
