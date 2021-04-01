@@ -648,6 +648,11 @@ func resourceAwsS3Bucket() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"skip_encryption_config": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 	}
 }
@@ -820,9 +825,12 @@ func resourceAwsS3BucketUpdate(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 
-	if d.HasChange("server_side_encryption_configuration") {
-		if err := resourceAwsS3BucketServerSideEncryptionConfigurationUpdate(s3conn, d); err != nil {
-			return err
+	skipEncryptionConfig, skipEncryptionConfigOk := d.GetOk("skip_encryption_config")
+	if !skipEncryptionConfigOk || !skipEncryptionConfig.(bool) {
+		if d.HasChange("server_side_encryption_configuration") {
+			if err := resourceAwsS3BucketServerSideEncryptionConfigurationUpdate(s3conn, d); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1285,21 +1293,24 @@ func resourceAwsS3BucketRead(d *schema.ResourceData, meta interface{}) error {
 
 	// Read the bucket server side encryption configuration
 
-	encryptionResponse, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
-		return s3conn.GetBucketEncryption(&s3.GetBucketEncryptionInput{
-			Bucket: aws.String(d.Id()),
+	skipEncryptionConfig, skipEncryptionConfigOk := d.GetOk("skip_encryption_config")
+	if !skipEncryptionConfigOk || !skipEncryptionConfig.(bool) {
+		encryptionResponse, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
+			return s3conn.GetBucketEncryption(&s3.GetBucketEncryptionInput{
+				Bucket: aws.String(d.Id()),
+			})
 		})
-	})
-	if err != nil && !isAWSErr(err, "ServerSideEncryptionConfigurationNotFoundError", "encryption configuration was not found") {
-		return fmt.Errorf("error getting S3 Bucket encryption: %s", err)
-	}
+		if err != nil && !isAWSErr(err, "ServerSideEncryptionConfigurationNotFoundError", "encryption configuration was not found") {
+			return fmt.Errorf("error getting S3 Bucket encryption: %s", err)
+		}
 
-	serverSideEncryptionConfiguration := make([]map[string]interface{}, 0)
-	if encryption, ok := encryptionResponse.(*s3.GetBucketEncryptionOutput); ok && encryption.ServerSideEncryptionConfiguration != nil {
-		serverSideEncryptionConfiguration = flattenAwsS3ServerSideEncryptionConfiguration(encryption.ServerSideEncryptionConfiguration)
-	}
-	if err := d.Set("server_side_encryption_configuration", serverSideEncryptionConfiguration); err != nil {
-		return fmt.Errorf("error setting server_side_encryption_configuration: %s", err)
+		serverSideEncryptionConfiguration := make([]map[string]interface{}, 0)
+		if encryption, ok := encryptionResponse.(*s3.GetBucketEncryptionOutput); ok && encryption.ServerSideEncryptionConfiguration != nil {
+			serverSideEncryptionConfiguration = flattenAwsS3ServerSideEncryptionConfiguration(encryption.ServerSideEncryptionConfiguration)
+		}
+		if err := d.Set("server_side_encryption_configuration", serverSideEncryptionConfiguration); err != nil {
+			return fmt.Errorf("error setting server_side_encryption_configuration: %s", err)
+		}
 	}
 
 	// Object Lock configuration.

@@ -228,7 +228,7 @@ func TestAccAWSS3Bucket_SkipConfig(t *testing.T) {
 				ImportStateVerify: true,
 				ImportStateVerifyIgnore: []string{
 					"force_destroy", "acl",
-					"skip_acceleration_config", "skip_payer_config", "skip_lock_config", "skip_logging_config", "skip_tag_config",
+					"skip_acceleration_config", "skip_payer_config", "skip_lock_config", "skip_logging_config", "skip_tag_config", "skip_encryption_config",
 				},
 			},
 		},
@@ -4733,6 +4733,7 @@ resource "aws_s3_bucket" "bucket" {
   skip_lock_config         = true
   skip_logging_config      = true
   skip_lock_config         = true
+  skip_encryption_config   = true
 }
 `, bucketName)
 }
