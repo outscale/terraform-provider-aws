@@ -643,6 +643,11 @@ func resourceAwsS3Bucket() *schema.Resource {
 				Optional: true,
 				Default:  false,
 			},
+			"skip_tag_config": {
+				Type:     schema.TypeBool,
+				Optional: true,
+				Default:  false,
+			},
 		},
 	}
 }
@@ -725,16 +730,19 @@ func resourceAwsS3BucketCreate(d *schema.ResourceData, meta interface{}) error {
 func resourceAwsS3BucketUpdate(d *schema.ResourceData, meta interface{}) error {
 	s3conn := meta.(*AWSClient).s3conn
 
-	if d.HasChange("tags") {
-		o, n := d.GetChange("tags")
+	skipTagConfig, skipTagConfigOk := d.GetOk("skip_tag_config")
+	if !skipTagConfigOk || !skipTagConfig.(bool) {
+		if d.HasChange("tags") {
+			o, n := d.GetChange("tags")
 
-		// Retry due to S3 eventual consistency
-		_, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
-			terr := keyvaluetags.S3BucketUpdateTags(s3conn, d.Id(), o, n)
-			return nil, terr
-		})
-		if err != nil {
-			return fmt.Errorf("error updating S3 Bucket (%s) tags: %s", d.Id(), err)
+			// Retry due to S3 eventual consistency
+			_, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
+				terr := keyvaluetags.S3BucketUpdateTags(s3conn, d.Id(), o, n)
+				return nil, terr
+			})
+			if err != nil {
+				return fmt.Errorf("error updating S3 Bucket (%s) tags: %s", d.Id(), err)
+			}
 		}
 	}
 
@@ -1361,16 +1369,20 @@ func resourceAwsS3BucketRead(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	// Retry due to S3 eventual consistency
-	tags, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
-		return keyvaluetags.S3BucketListTags(s3conn, d.Id())
-	})
 
-	if err != nil {
-		return fmt.Errorf("error listing tags for S3 Bucket (%s): %s", d.Id(), err)
-	}
+	skipTagConfig, skipTagConfigOk := d.GetOk("skip_tag_config")
+	if !skipTagConfigOk || !skipTagConfig.(bool) {
 
-	if err := d.Set("tags", tags.(keyvaluetags.KeyValueTags).IgnoreAws().IgnoreConfig(ignoreTagsConfig).Map()); err != nil {
-		return fmt.Errorf("error setting tags: %s", err)
+		tags, err := retryOnAwsCode(s3.ErrCodeNoSuchBucket, func() (interface{}, error) {
+			return keyvaluetags.S3BucketListTags(s3conn, d.Id())
+		})
+		if err != nil {
+			return fmt.Errorf("error listing tags for S3 Bucket (%s): %s", d.Id(), err)
+		}
+
+		if err := d.Set("tags", tags.(keyvaluetags.KeyValueTags).IgnoreAws().IgnoreConfig(ignoreTagsConfig).Map()); err != nil {
+			return fmt.Errorf("error setting tags: %s", err)
+		}
 	}
 
 	arn := arn.ARN{
