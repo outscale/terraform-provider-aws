@@ -4,6 +4,8 @@
 
 # Terraform Provider for AWS
 
+[![Project Sandbox](https://docs.outscale.com/fr/userguide/_images/Project-Sandbox-yellow.svg)](https://docs.outscale.com/en/userguide/Open-Source-Projects.html)
+
 [![Forums][discuss-badge]][discuss]
 
 [discuss-badge]: https://img.shields.io/badge/discuss-terraform--aws-623CE4.svg?style=flat
